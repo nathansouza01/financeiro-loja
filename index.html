@@ -10,18 +10,19 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0d0d14; color: #e2e8f0; font-family: 'Georgia', serif; }
+    body { background: #1a1018; color: #f0e6ee; font-family: 'Georgia', serif; }
     input, select, button { font-family: inherit; }
-    ::-webkit-scrollbar { width: 6px; } 
+    input::placeholder { color: #9e7d95; }
+    ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #ffffff08; }
-    ::-webkit-scrollbar-thumb { background: #c084fc44; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: #f4a7c344; border-radius: 10px; }
+    option { background: #2a1a26; color: #f0e6ee; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
 
-// ─── SUPABASE CONFIG ──────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://guvpqriitqspggznwtkr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1dnBxcmlpdHFzcGdnem53dGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNjE2NjYsImV4cCI6MjA4OTYzNzY2Nn0.X0GVsoMac7dpOVzCZPg6CGklWIbdTB0sD8_tAYSl6FU";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -30,14 +31,25 @@ const { useState, useEffect } = React;
 
 const categories = ["Canecas", "Camisetas", "Quadros", "Convites", "Topos de Bolo", "Adesivos", "Cartonagem", "Outros"];
 
-// ─── APP ──────────────────────────────────────────────────────────────────────
+const pink = {
+  main: "#f4a7c3",
+  light: "#ffd6e7",
+  dark: "#d4729a",
+  bg: "#1a1018",
+  card: "#ffffff07",
+  border: "#f4a7c322",
+  text: "#f0e6ee",
+  muted: "#9e7d95",
+  green: "#7ecfa0",
+  red: "#f4877a",
+};
+
 function App() {
   const [tab, setTab] = useState("dashboard");
   const [data, setData] = useState({ transactions: [], products: [], budgets: [] });
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState(null);
 
-  // Carrega todos os dados do Supabase
   useEffect(() => {
     (async () => {
       try {
@@ -63,15 +75,8 @@ function App() {
     setTimeout(() => setToast(null), 2800);
   }
 
-  // Funções de CRUD para transactions
   async function addTransaction(form) {
-    const row = {
-      type: form.type,
-      description: form.description,
-      amount: parseFloat(form.amount),
-      category: form.category,
-      date: form.date,
-    };
+    const row = { type: form.type, description: form.description, amount: parseFloat(form.amount), category: form.category, date: form.date };
     const { data: inserted, error } = await supabase.from("transactions").insert([row]).select();
     if (error) { showToast("Erro ao salvar lançamento", "error"); return false; }
     setData(d => ({ ...d, transactions: [inserted[0], ...d.transactions] }));
@@ -86,14 +91,8 @@ function App() {
     showToast("Removido.");
   }
 
-  // Funções de CRUD para products
   async function addProduct(form) {
-    const row = {
-      name: form.name,
-      category: form.category,
-      cost: parseFloat(form.cost),
-      price: parseFloat(form.price),
-    };
+    const row = { name: form.name, category: form.category, cost: parseFloat(form.cost), price: parseFloat(form.price) };
     const { data: inserted, error } = await supabase.from("products").insert([row]).select();
     if (error) { showToast("Erro ao salvar produto", "error"); return false; }
     setData(d => ({ ...d, products: [inserted[0], ...d.products] }));
@@ -108,16 +107,8 @@ function App() {
     showToast("Removido.");
   }
 
-  // Funções de CRUD para budgets
   async function addBudget(form) {
-    const row = {
-      client: form.client,
-      event: form.event,
-      items: form.items,
-      total: parseFloat(form.total),
-      date: form.date,
-      status: "pendente",
-    };
+    const row = { client: form.client, event: form.event, items: form.items, total: parseFloat(form.total), date: form.date, status: "pendente" };
     const { data: inserted, error } = await supabase.from("budgets").insert([row]).select();
     if (error) { showToast("Erro ao salvar orçamento", "error"); return false; }
     setData(d => ({ ...d, budgets: [inserted[0], ...d.budgets] }));
@@ -139,24 +130,23 @@ function App() {
   }
 
   if (!loaded) return (
-    <div style={styles.loading}>
-      <div style={styles.spinner} />
-      <p style={{ color: "#c084fc", marginTop: 16 }}>Carregando...</p>
+    <div style={S.loading}>
+      <div style={S.spinner} />
+      <p style={{ color: pink.main, marginTop: 16 }}>Carregando...</p>
     </div>
   );
 
   return (
-    <div style={styles.root}>
-      <div style={styles.bgDecor1} />
-      <div style={styles.bgDecor2} />
-
-      <header style={styles.header}>
-        <div style={styles.headerInner}>
+    <div style={S.root}>
+      <div style={S.bgDecor1} />
+      <div style={S.bgDecor2} />
+      <header style={S.header}>
+        <div style={S.headerInner}>
           <div>
-            <div style={styles.logo}>✦ Financeiro</div>
-            <div style={styles.logoSub}>Loja de Personalizados</div>
+            <div style={S.logo}>✦ Financeiro</div>
+            <div style={S.logoSub}>Loja de Personalizados</div>
           </div>
-          <nav style={styles.nav}>
+          <nav style={S.nav}>
             {[
               { id: "dashboard", label: "Resumo", icon: "◈" },
               { id: "transactions", label: "Lançamentos", icon: "⊕" },
@@ -164,7 +154,7 @@ function App() {
               { id: "budgets", label: "Orçamentos", icon: "◇" },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ ...styles.navBtn, ...(tab === t.id ? styles.navBtnActive : {}) }}>
+                style={{ ...S.navBtn, ...(tab === t.id ? S.navBtnActive : {}) }}>
                 <span style={{ marginRight: 5 }}>{t.icon}</span>{t.label}
               </button>
             ))}
@@ -172,7 +162,7 @@ function App() {
         </div>
       </header>
 
-      <main style={styles.main}>
+      <main style={S.main}>
         {tab === "dashboard" && <Dashboard data={data} />}
         {tab === "transactions" && <Transactions data={data} addTransaction={addTransaction} removeTransaction={removeTransaction} showToast={showToast} />}
         {tab === "products" && <Products data={data} addProduct={addProduct} removeProduct={removeProduct} showToast={showToast} />}
@@ -180,7 +170,7 @@ function App() {
       </main>
 
       {toast && (
-        <div style={{ ...styles.toast, background: toast.type === "success" ? "#14532d" : "#7f1d1d" }}>
+        <div style={{ ...S.toast, background: toast.type === "success" ? "#2e1a28" : "#2e1a1a", borderLeft: `3px solid ${toast.type === "success" ? pink.main : pink.red}` }}>
           {toast.type === "success" ? "✓" : "✕"} {toast.msg}
         </div>
       )}
@@ -191,8 +181,21 @@ function App() {
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 function Dashboard({ data }) {
   const now = new Date();
-  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const monthly = data.transactions.filter(t => t.date?.startsWith(thisMonth));
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
+
+  function prevMonth() {
+    if (month === 0) { setMonth(11); setYear(y => y - 1); }
+    else setMonth(m => m - 1);
+  }
+  function nextMonth() {
+    if (year === now.getFullYear() && month >= now.getMonth()) return;
+    if (month === 11) { setMonth(0); setYear(y => y + 1); }
+    else setMonth(m => m + 1);
+  }
+
+  const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+  const monthly = data.transactions.filter(t => t.date?.startsWith(monthStr));
   const totalIn = monthly.filter(t => t.type === "entrada").reduce((s, t) => s + Number(t.amount), 0);
   const totalOut = monthly.filter(t => t.type === "saida").reduce((s, t) => s + Number(t.amount), 0);
   const profit = totalIn - totalOut;
@@ -203,42 +206,51 @@ function Dashboard({ data }) {
   });
   const topCats = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 4);
   const recent = [...data.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-  const monthLabel = now.toLocaleString("pt-BR", { month: "long", year: "numeric" });
+  const monthLabel = new Date(year, month).toLocaleString("pt-BR", { month: "long", year: "numeric" });
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth();
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Resumo de <span style={{ color: "#c084fc" }}>{monthLabel}</span></h2>
-      <div style={styles.kpiGrid}>
-        <KPI label="Entradas" value={totalIn} color="#4ade80" icon="↑" />
-        <KPI label="Saídas" value={totalOut} color="#f87171" icon="↓" />
-        <KPI label="Lucro" value={profit} color={profit >= 0 ? "#a78bfa" : "#f87171"} icon="◈" />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+        <button onClick={prevMonth} style={S.monthBtn}>‹</button>
+        <h2 style={{ ...S.sectionTitle, marginBottom: 0, flex: 1, textAlign: "center", fontSize: 20 }}>
+          Resumo de <span style={{ color: pink.main }}>{monthLabel}</span>
+        </h2>
+        <button onClick={nextMonth} style={{ ...S.monthBtn, opacity: isCurrentMonth ? 0.3 : 1 }} disabled={isCurrentMonth}>›</button>
       </div>
-      <div style={styles.twoCol}>
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>Mais Vendidos (este mês)</div>
+
+      <div style={S.kpiGrid}>
+        <KPI label="Entradas" value={totalIn} color={pink.green} icon="↑" />
+        <KPI label="Saídas" value={totalOut} color={pink.red} icon="↓" />
+        <KPI label="Lucro" value={profit} color={profit >= 0 ? pink.main : pink.red} icon="◈" />
+      </div>
+
+      <div style={S.twoCol}>
+        <div style={S.card}>
+          <div style={S.cardTitle}>Mais Vendidos (este mês)</div>
           {topCats.length === 0 ? (
-            <p style={styles.empty}>Nenhuma entrada registrada ainda.</p>
+            <p style={S.empty}>Nenhuma entrada registrada ainda.</p>
           ) : topCats.map(([cat, val]) => (
-            <div key={cat} style={styles.barRow}>
-              <span style={styles.barLabel}>{cat}</span>
-              <div style={styles.barTrack}>
-                <div style={{ ...styles.barFill, width: `${Math.min(100, (val / totalIn) * 100)}%` }} />
+            <div key={cat} style={S.barRow}>
+              <span style={S.barLabel}>{cat}</span>
+              <div style={S.barTrack}>
+                <div style={{ ...S.barFill, width: `${Math.min(100, (val / totalIn) * 100)}%` }} />
               </div>
-              <span style={styles.barValue}>{fmt(val)}</span>
+              <span style={S.barValue}>{fmt(val)}</span>
             </div>
           ))}
         </div>
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>Últimas Transações</div>
+        <div style={S.card}>
+          <div style={S.cardTitle}>Últimas Transações</div>
           {recent.length === 0 ? (
-            <p style={styles.empty}>Nenhuma transação ainda.</p>
+            <p style={S.empty}>Nenhuma transação ainda.</p>
           ) : recent.map(t => (
-            <div key={t.id} style={styles.txRow}>
+            <div key={t.id} style={S.txRow}>
               <div>
-                <div style={styles.txDesc}>{t.description}</div>
-                <div style={styles.txMeta}>{t.category} · {t.date}</div>
+                <div style={S.txDesc}>{t.description}</div>
+                <div style={S.txMeta}>{t.category} · {t.date}</div>
               </div>
-              <div style={{ ...styles.txAmount, color: t.type === "entrada" ? "#4ade80" : "#f87171" }}>
+              <div style={{ ...S.txAmount, color: t.type === "entrada" ? pink.green : pink.red }}>
                 {t.type === "entrada" ? "+" : "-"}{fmt(t.amount)}
               </div>
             </div>
@@ -251,10 +263,10 @@ function Dashboard({ data }) {
 
 function KPI({ label, value, color, icon }) {
   return (
-    <div style={{ ...styles.kpiCard, borderColor: color + "44" }}>
-      <div style={{ ...styles.kpiIcon, color }}>{icon}</div>
-      <div style={{ ...styles.kpiValue, color }}>{fmt(value)}</div>
-      <div style={styles.kpiLabel}>{label}</div>
+    <div style={{ ...S.kpiCard, borderColor: color + "44" }}>
+      <div style={{ ...S.kpiIcon, color }}>{icon}</div>
+      <div style={{ ...S.kpiValue, color }}>{fmt(value)}</div>
+      <div style={S.kpiLabel}>{label}</div>
     </div>
   );
 }
@@ -278,25 +290,25 @@ function Transactions({ data, addTransaction, removeTransaction, showToast }) {
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Lançamentos</h2>
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>Novo Lançamento</div>
-        <div style={styles.formGrid}>
-          <div style={styles.typeToggle}>
+      <h2 style={S.sectionTitle}>Lançamentos</h2>
+      <div style={S.card}>
+        <div style={S.cardTitle}>Novo Lançamento</div>
+        <div style={S.formGrid}>
+          <div style={S.typeToggle}>
             {["entrada", "saida"].map(t => (
               <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
-                style={{ ...styles.typeBtn, ...(form.type === t ? (t === "entrada" ? styles.typeBtnEntrada : styles.typeBtnSaida) : {}) }}>
+                style={{ ...S.typeBtn, ...(form.type === t ? (t === "entrada" ? S.typeBtnEntrada : S.typeBtnSaida) : {}) }}>
                 {t === "entrada" ? "↑ Entrada" : "↓ Saída"}
               </button>
             ))}
           </div>
-          <input style={styles.input} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          <input style={styles.input} placeholder="Valor (R$)" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
-          <select style={styles.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+          <input style={S.input} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <input style={S.input} placeholder="Valor (R$)" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          <select style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
             {categories.map(c => <option key={c}>{c}</option>)}
           </select>
-          <input style={styles.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          <button style={{ ...styles.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+          <input style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Adicionar"}
           </button>
         </div>
@@ -304,21 +316,21 @@ function Transactions({ data, addTransaction, removeTransaction, showToast }) {
       <div style={{ display: "flex", gap: 8, margin: "20px 0 12px" }}>
         {["todos", "entrada", "saida"].map(f => (
           <button key={f} onClick={() => setFilter(f)}
-            style={{ ...styles.filterBtn, ...(filter === f ? styles.filterBtnActive : {}) }}>
+            style={{ ...S.filterBtn, ...(filter === f ? S.filterBtnActive : {}) }}>
             {f === "todos" ? "Todos" : f === "entrada" ? "↑ Entradas" : "↓ Saídas"}
           </button>
         ))}
       </div>
-      {sorted.length === 0 ? <p style={styles.empty}>Nenhum lançamento ainda.</p> : sorted.map(t => (
-        <div key={t.id} style={{ ...styles.txCard, borderLeft: `3px solid ${t.type === "entrada" ? "#4ade80" : "#f87171"}` }}>
+      {sorted.length === 0 ? <p style={S.empty}>Nenhum lançamento ainda.</p> : sorted.map(t => (
+        <div key={t.id} style={{ ...S.txCard, borderLeft: `3px solid ${t.type === "entrada" ? pink.green : pink.red}` }}>
           <div style={{ flex: 1 }}>
-            <div style={styles.txDesc}>{t.description}</div>
-            <div style={styles.txMeta}>{t.category} · {t.date}</div>
+            <div style={S.txDesc}>{t.description}</div>
+            <div style={S.txMeta}>{t.category} · {t.date}</div>
           </div>
-          <div style={{ ...styles.txAmount, color: t.type === "entrada" ? "#4ade80" : "#f87171" }}>
+          <div style={{ ...S.txAmount, color: t.type === "entrada" ? pink.green : pink.red }}>
             {t.type === "entrada" ? "+" : "-"}{fmt(t.amount)}
           </div>
-          <button onClick={() => removeTransaction(t.id)} style={styles.btnRemove}>✕</button>
+          <button onClick={() => removeTransaction(t.id)} style={S.btnRemove}>✕</button>
         </div>
       ))}
     </div>
@@ -340,41 +352,41 @@ function Products({ data, addProduct, removeProduct, showToast }) {
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Lucro por Produto</h2>
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>Novo Produto</div>
-        <div style={styles.formGrid}>
-          <input style={styles.input} placeholder="Nome do produto" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <select style={styles.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+      <h2 style={S.sectionTitle}>Lucro por Produto</h2>
+      <div style={S.card}>
+        <div style={S.cardTitle}>Novo Produto</div>
+        <div style={S.formGrid}>
+          <input style={S.input} placeholder="Nome do produto" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <select style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
             {categories.map(c => <option key={c}>{c}</option>)}
           </select>
-          <input style={styles.input} placeholder="Custo (R$)" type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} />
-          <input style={styles.input} placeholder="Preço de venda (R$)" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-          <button style={{ ...styles.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+          <input style={S.input} placeholder="Custo (R$)" type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} />
+          <input style={S.input} placeholder="Preço de venda (R$)" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Calcular e Salvar"}
           </button>
         </div>
       </div>
-      {data.products.length === 0 ? <p style={styles.empty}>Nenhum produto cadastrado ainda.</p> : (
-        <div style={styles.productGrid}>
+      {data.products.length === 0 ? <p style={S.empty}>Nenhum produto cadastrado ainda.</p> : (
+        <div style={S.productGrid}>
           {data.products.map(p => {
             const lucro = Number(p.price) - Number(p.cost);
             const margem = ((lucro / Number(p.price)) * 100).toFixed(1);
             return (
-              <div key={p.id} style={styles.productCard}>
-                <div style={styles.productName}>{p.name}</div>
-                <div style={styles.productCat}>{p.category}</div>
-                <div style={styles.productRow}><span>Custo</span><span style={{ color: "#f87171" }}>{fmt(p.cost)}</span></div>
-                <div style={styles.productRow}><span>Venda</span><span style={{ color: "#4ade80" }}>{fmt(p.price)}</span></div>
-                <div style={{ ...styles.productRow, fontWeight: 700, borderTop: "1px solid #ffffff10", paddingTop: 8, marginTop: 4 }}>
+              <div key={p.id} style={S.productCard}>
+                <div style={S.productName}>{p.name}</div>
+                <div style={S.productCat}>{p.category}</div>
+                <div style={S.productRow}><span>Custo</span><span style={{ color: pink.red }}>{fmt(p.cost)}</span></div>
+                <div style={S.productRow}><span>Venda</span><span style={{ color: pink.green }}>{fmt(p.price)}</span></div>
+                <div style={{ ...S.productRow, fontWeight: 700, borderTop: `1px solid ${pink.border}`, paddingTop: 8, marginTop: 4 }}>
                   <span>Lucro</span>
-                  <span style={{ color: lucro >= 0 ? "#c084fc" : "#f87171" }}>{fmt(lucro)}</span>
+                  <span style={{ color: lucro >= 0 ? pink.main : pink.red }}>{fmt(lucro)}</span>
                 </div>
-                <div style={styles.margemBar}>
-                  <div style={{ ...styles.margemFill, width: `${Math.min(100, Math.max(0, parseFloat(margem)))}%` }} />
+                <div style={S.margemBar}>
+                  <div style={{ ...S.margemFill, width: `${Math.min(100, Math.max(0, parseFloat(margem)))}%` }} />
                 </div>
-                <div style={{ textAlign: "right", fontSize: 11, color: "#a78bfa", marginTop: 4 }}>Margem: {margem}%</div>
-                <button onClick={() => removeProduct(p.id)} style={{ ...styles.btnRemove, marginTop: 12, width: "100%" }}>✕ Remover</button>
+                <div style={{ textAlign: "right", fontSize: 11, color: pink.main, marginTop: 4 }}>Margem: {margem}%</div>
+                <button onClick={() => removeProduct(p.id)} style={{ ...S.btnRemove, marginTop: 12, width: "100%" }}>✕ Remover</button>
               </div>
             );
           })}
@@ -397,41 +409,41 @@ function Budgets({ data, addBudget, updateBudgetStatus, removeBudget, showToast 
     setSaving(false);
   }
 
-  const statusColor = { pendente: "#facc15", aprovado: "#4ade80", recusado: "#f87171" };
+  const statusColor = { pendente: "#f4c77a", aprovado: pink.green, recusado: pink.red };
 
   return (
     <div>
-      <h2 style={styles.sectionTitle}>Orçamentos de Clientes</h2>
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>Novo Orçamento</div>
-        <div style={styles.formGrid}>
-          <input style={styles.input} placeholder="Nome do cliente" value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))} />
-          <input style={styles.input} placeholder="Evento (ex: Aniversário 30 anos)" value={form.event} onChange={e => setForm(f => ({ ...f, event: e.target.value }))} />
-          <input style={styles.input} placeholder="Itens (ex: 50 convites, topo de bolo)" value={form.items} onChange={e => setForm(f => ({ ...f, items: e.target.value }))} />
-          <input style={styles.input} placeholder="Valor total (R$)" type="number" value={form.total} onChange={e => setForm(f => ({ ...f, total: e.target.value }))} />
-          <input style={styles.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          <button style={{ ...styles.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+      <h2 style={S.sectionTitle}>Orçamentos de Clientes</h2>
+      <div style={S.card}>
+        <div style={S.cardTitle}>Novo Orçamento</div>
+        <div style={S.formGrid}>
+          <input style={S.input} placeholder="Nome do cliente" value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))} />
+          <input style={S.input} placeholder="Evento (ex: Aniversário 30 anos)" value={form.event} onChange={e => setForm(f => ({ ...f, event: e.target.value }))} />
+          <input style={S.input} placeholder="Itens (ex: 50 convites, topo de bolo)" value={form.items} onChange={e => setForm(f => ({ ...f, items: e.target.value }))} />
+          <input style={S.input} placeholder="Valor total (R$)" type="number" value={form.total} onChange={e => setForm(f => ({ ...f, total: e.target.value }))} />
+          <input style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Salvar Orçamento"}
           </button>
         </div>
       </div>
-      {data.budgets.length === 0 ? <p style={styles.empty}>Nenhum orçamento ainda.</p> : data.budgets.map(b => (
-        <div key={b.id} style={{ ...styles.txCard, borderLeft: `3px solid ${statusColor[b.status] || "#facc15"}` }}>
+      {data.budgets.length === 0 ? <p style={S.empty}>Nenhum orçamento ainda.</p> : data.budgets.map(b => (
+        <div key={b.id} style={{ ...S.txCard, borderLeft: `3px solid ${statusColor[b.status] || "#f4c77a"}` }}>
           <div style={{ flex: 1 }}>
-            <div style={styles.txDesc}>{b.client} <span style={{ color: "#a78bfa", fontWeight: 400 }}>· {b.event}</span></div>
-            <div style={styles.txMeta}>{b.items} · {b.date}</div>
+            <div style={S.txDesc}>{b.client} <span style={{ color: pink.main, fontWeight: 400 }}>· {b.event}</span></div>
+            <div style={S.txMeta}>{b.items} · {b.date}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
               {["pendente", "aprovado", "recusado"].map(s => (
                 <button key={s} onClick={() => updateBudgetStatus(b.id, s)}
-                  style={{ ...styles.statusBtn, background: b.status === s ? (statusColor[s] + "33") : "transparent", borderColor: statusColor[s], color: b.status === s ? statusColor[s] : "#666" }}>
+                  style={{ ...S.statusBtn, background: b.status === s ? (statusColor[s] + "33") : "transparent", borderColor: statusColor[s], color: b.status === s ? statusColor[s] : "#666" }}>
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
               ))}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ ...styles.txAmount, fontSize: 18, color: "#c084fc" }}>{fmt(b.total)}</div>
-            <button onClick={() => removeBudget(b.id)} style={{ ...styles.btnRemove, marginTop: 8 }}>✕</button>
+            <div style={{ ...S.txAmount, fontSize: 18, color: pink.main }}>{fmt(b.total)}</div>
+            <button onClick={() => removeBudget(b.id)} style={{ ...S.btnRemove, marginTop: 8 }}>✕</button>
           </div>
         </div>
       ))}
@@ -448,62 +460,62 @@ function today() {
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
-const styles = {
-  root: { minHeight: "100vh", background: "#0d0d14", color: "#e2e8f0", fontFamily: "'Georgia', serif", position: "relative" },
-  bgDecor1: { position: "fixed", top: -120, right: -120, width: 400, height: 400, background: "radial-gradient(circle, #7c3aed22, transparent 70%)", pointerEvents: "none", zIndex: 0 },
-  bgDecor2: { position: "fixed", bottom: -80, left: -80, width: 300, height: 300, background: "radial-gradient(circle, #c084fc18, transparent 70%)", pointerEvents: "none", zIndex: 0 },
+const S = {
+  root: { minHeight: "100vh", background: pink.bg, color: pink.text, fontFamily: "'Georgia', serif", position: "relative" },
+  bgDecor1: { position: "fixed", top: -120, right: -120, width: 400, height: 400, background: "radial-gradient(circle, #f4a7c318, transparent 70%)", pointerEvents: "none", zIndex: 0 },
+  bgDecor2: { position: "fixed", bottom: -80, left: -80, width: 300, height: 300, background: "radial-gradient(circle, #d4729a14, transparent 70%)", pointerEvents: "none", zIndex: 0 },
   loading: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh" },
-  spinner: { width: 36, height: 36, border: "3px solid #c084fc44", borderTop: "3px solid #c084fc", borderRadius: "50%", animation: "spin 1s linear infinite" },
-  header: { background: "#0d0d14dd", backdropFilter: "blur(12px)", borderBottom: "1px solid #ffffff10", position: "sticky", top: 0, zIndex: 100 },
+  spinner: { width: 36, height: 36, border: `3px solid ${pink.main}44`, borderTop: `3px solid ${pink.main}`, borderRadius: "50%", animation: "spin 1s linear infinite" },
+  header: { background: "#1a1018ee", backdropFilter: "blur(12px)", borderBottom: `1px solid ${pink.border}`, position: "sticky", top: 0, zIndex: 100 },
   headerInner: { maxWidth: 900, margin: "0 auto", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 },
-  logo: { fontSize: 20, fontWeight: 700, color: "#c084fc", letterSpacing: 1 },
-  logoSub: { fontSize: 11, color: "#888", letterSpacing: 2, textTransform: "uppercase" },
+  logo: { fontSize: 20, fontWeight: 700, color: pink.main, letterSpacing: 1 },
+  logoSub: { fontSize: 11, color: pink.muted, letterSpacing: 2, textTransform: "uppercase" },
   nav: { display: "flex", gap: 4, flexWrap: "wrap" },
-  navBtn: { background: "transparent", border: "1px solid transparent", color: "#888", padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 },
-  navBtnActive: { background: "#c084fc18", border: "1px solid #c084fc55", color: "#c084fc" },
+  navBtn: { background: "transparent", border: "1px solid transparent", color: pink.muted, padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13 },
+  navBtnActive: { background: `${pink.main}18`, border: `1px solid ${pink.main}55`, color: pink.main },
   main: { maxWidth: 900, margin: "0 auto", padding: "28px 20px 60px", position: "relative", zIndex: 1 },
-  sectionTitle: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: "#f1f5f9" },
+  sectionTitle: { fontSize: 24, fontWeight: 700, marginBottom: 24, color: pink.light },
+  monthBtn: { background: `${pink.main}18`, border: `1px solid ${pink.main}44`, color: pink.main, borderRadius: 8, width: 36, height: 36, fontSize: 22, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   kpiGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 },
-  kpiCard: { background: "#ffffff06", border: "1px solid", borderRadius: 16, padding: "20px 16px", textAlign: "center" },
+  kpiCard: { background: pink.card, border: "1px solid", borderRadius: 16, padding: "20px 16px", textAlign: "center" },
   kpiIcon: { fontSize: 22, marginBottom: 6 },
   kpiValue: { fontSize: 22, fontWeight: 700, marginBottom: 4 },
-  kpiLabel: { fontSize: 12, color: "#888", textTransform: "uppercase", letterSpacing: 1 },
+  kpiLabel: { fontSize: 12, color: pink.muted, textTransform: "uppercase", letterSpacing: 1 },
   twoCol: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 },
-  card: { background: "#ffffff06", border: "1px solid #ffffff10", borderRadius: 16, padding: "20px", marginBottom: 20 },
-  cardTitle: { fontSize: 14, fontWeight: 600, color: "#a78bfa", marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 },
+  card: { background: pink.card, border: `1px solid ${pink.border}`, borderRadius: 16, padding: "20px", marginBottom: 20 },
+  cardTitle: { fontSize: 14, fontWeight: 600, color: pink.main, marginBottom: 16, textTransform: "uppercase", letterSpacing: 1 },
   barRow: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10 },
-  barLabel: { width: 90, fontSize: 13, color: "#cbd5e1" },
+  barLabel: { width: 90, fontSize: 13, color: pink.light },
   barTrack: { flex: 1, height: 6, background: "#ffffff10", borderRadius: 10, overflow: "hidden" },
-  barFill: { height: "100%", background: "linear-gradient(90deg, #7c3aed, #c084fc)", borderRadius: 10 },
-  barValue: { width: 80, textAlign: "right", fontSize: 13, color: "#4ade80" },
-  txRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #ffffff08" },
-  txCard: { background: "#ffffff06", border: "1px solid #ffffff10", borderRadius: 12, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 },
-  txDesc: { fontSize: 15, color: "#f1f5f9", fontWeight: 600 },
-  txMeta: { fontSize: 12, color: "#888", marginTop: 3 },
+  barFill: { height: "100%", background: `linear-gradient(90deg, ${pink.dark}, ${pink.main})`, borderRadius: 10 },
+  barValue: { width: 80, textAlign: "right", fontSize: 13, color: pink.green },
+  txRow: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${pink.border}` },
+  txCard: { background: pink.card, border: `1px solid ${pink.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 10, display: "flex", alignItems: "center", gap: 12 },
+  txDesc: { fontSize: 15, color: pink.light, fontWeight: 600 },
+  txMeta: { fontSize: 12, color: pink.muted, marginTop: 3 },
   txAmount: { fontWeight: 700, whiteSpace: "nowrap" },
-  empty: { color: "#555", fontStyle: "italic", textAlign: "center", padding: "20px 0" },
+  empty: { color: pink.muted, fontStyle: "italic", textAlign: "center", padding: "20px 0" },
   formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  input: { background: "#ffffff08", border: "1px solid #ffffff15", borderRadius: 10, padding: "10px 12px", color: "#e2e8f0", fontSize: 14, outline: "none", width: "100%" },
-  btnPrimary: { gridColumn: "1 / -1", background: "linear-gradient(135deg, #7c3aed, #c084fc)", border: "none", color: "#fff", padding: "12px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15 },
-  btnRemove: { background: "transparent", border: "1px solid #ffffff20", color: "#888", borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 13 },
+  input: { background: "#ffffff08", border: `1px solid ${pink.border}`, borderRadius: 10, padding: "10px 12px", color: pink.light, fontSize: 14, outline: "none", width: "100%" },
+  btnPrimary: { gridColumn: "1 / -1", background: `linear-gradient(135deg, ${pink.dark}, ${pink.main})`, border: "none", color: "#fff", padding: "12px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 15 },
+  btnRemove: { background: "transparent", border: `1px solid ${pink.border}`, color: pink.muted, borderRadius: 8, padding: "4px 10px", cursor: "pointer", fontSize: 13 },
   typeToggle: { gridColumn: "1 / -1", display: "flex", gap: 8 },
-  typeBtn: { flex: 1, background: "#ffffff08", border: "1px solid #ffffff15", color: "#888", borderRadius: 10, padding: "10px", cursor: "pointer", fontWeight: 600, fontSize: 14 },
-  typeBtnEntrada: { background: "#14532d44", border: "1px solid #4ade80", color: "#4ade80" },
-  typeBtnSaida: { background: "#7f1d1d44", border: "1px solid #f87171", color: "#f87171" },
-  filterBtn: { background: "transparent", border: "1px solid #ffffff15", color: "#888", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 13 },
-  filterBtnActive: { background: "#c084fc18", border: "1px solid #c084fc", color: "#c084fc" },
+  typeBtn: { flex: 1, background: "#ffffff08", border: `1px solid ${pink.border}`, color: pink.muted, borderRadius: 10, padding: "10px", cursor: "pointer", fontWeight: 600, fontSize: 14 },
+  typeBtnEntrada: { background: "#1a3a2a44", border: `1px solid ${pink.green}`, color: pink.green },
+  typeBtnSaida: { background: "#3a1a1a44", border: `1px solid ${pink.red}`, color: pink.red },
+  filterBtn: { background: "transparent", border: `1px solid ${pink.border}`, color: pink.muted, borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontSize: 13 },
+  filterBtnActive: { background: `${pink.main}18`, border: `1px solid ${pink.main}`, color: pink.main },
   productGrid: { display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 },
-  productCard: { background: "#ffffff06", border: "1px solid #ffffff10", borderRadius: 16, padding: "18px" },
-  productName: { fontSize: 16, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 },
-  productCat: { fontSize: 12, color: "#a78bfa", marginBottom: 14, textTransform: "uppercase", letterSpacing: 1 },
+  productCard: { background: pink.card, border: `1px solid ${pink.border}`, borderRadius: 16, padding: "18px" },
+  productName: { fontSize: 16, fontWeight: 700, color: pink.light, marginBottom: 4 },
+  productCat: { fontSize: 12, color: pink.main, marginBottom: 14, textTransform: "uppercase", letterSpacing: 1 },
   productRow: { display: "flex", justifyContent: "space-between", fontSize: 14, marginBottom: 6 },
   margemBar: { height: 4, background: "#ffffff10", borderRadius: 10, overflow: "hidden", marginTop: 12 },
-  margemFill: { height: "100%", background: "linear-gradient(90deg, #7c3aed, #c084fc)", borderRadius: 10 },
+  margemFill: { height: "100%", background: `linear-gradient(90deg, ${pink.dark}, ${pink.main})`, borderRadius: 10 },
   statusBtn: { fontSize: 11, border: "1px solid", borderRadius: 8, padding: "3px 10px", cursor: "pointer" },
-  toast: { position: "fixed", bottom: 24, right: 24, padding: "12px 20px", borderRadius: 12, color: "#fff", fontWeight: 600, fontSize: 14, zIndex: 999, boxShadow: "0 4px 20px #00000060" },
+  toast: { position: "fixed", bottom: 24, right: 24, padding: "12px 20px", borderRadius: 12, color: pink.light, fontWeight: 600, fontSize: 14, zIndex: 999, boxShadow: "0 4px 20px #00000060" },
 };
 
-// Animação do spinner
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
 document.head.appendChild(styleSheet);
