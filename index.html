@@ -2,12 +2,13 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
   <title>Financeiro – Loja de Personalizados</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+  <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     :root {
       --accent: #e8a8c0;
@@ -16,6 +17,9 @@
       --green: #34c759;
       --red: #ff453a;
       --yellow: #ffd60a;
+      --gold: #c9971f;
+      --silver: #8a8d91;
+      --bronze: #b06a3a;
     }
 
     /* ---- LIGHT THEME (default) ---- */
@@ -62,9 +66,7 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html, body {
-      min-height: 100%;
-    }
+    html, body { min-height: 100%; }
 
     body {
       background: var(--bg-gradient);
@@ -74,7 +76,6 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Superfície de vidro reutilizável */
     .glass {
       background: var(--glass-bg);
       backdrop-filter: blur(var(--blur)) saturate(160%);
@@ -91,12 +92,12 @@
       pointer-events: none;
     }
 
-    input, select, button { font-family: inherit; }
-    input::placeholder { color: var(--text-tertiary); }
+    input, select, textarea, button { font-family: inherit; }
+    input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--text-tertiary); border-radius: 10px; }
-    option { background: var(--bg-elevated); color: var(--text); }
+    option { background: var(--glass-bg-strong); color: var(--text); }
   </style>
 </head>
 <body>
@@ -107,11 +108,39 @@ const SUPABASE_URL = "https://guvpqriitqspggznwtkr.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1dnBxcmlpdHFzcGdnem53dGtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNjE2NjYsImV4cCI6MjA4OTYzNzY2Nn0.X0GVsoMac7dpOVzCZPg6CGklWIbdTB0sD8_tAYSl6FU";
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
-const categories = ["Canecas", "Camisetas", "Quadros", "Convites", "Topos de Bolo", "Adesivos", "Cartonagem", "Outros"];
+// Categorias em ordem alfabética
+const categories = [
+  "Adesivos", "Camisetas", "Canecas",
+  "Card com bala/presilha/pompom/bis/chocolate",
+  "Cartonagem", "Cesta MDF", "Chaveiros", "Convites",
+  "Festa na Mesa", "Fotos", "Kits", "Outros", "Painel",
+  "Placa MDF", "Quadros", "Tags", "Topos de Bolo",
+];
 
-// Cores lidas das CSS variables (definidas no :root, com suporte a dark mode automático)
+const clientTiers = [
+  { id: "ouro", label: "Ouro", color: "#c9971f" },
+  { id: "prata", label: "Prata", color: "#8a8d91" },
+  { id: "bronze", label: "Bronze", color: "#b06a3a" },
+];
+
+const clientSegments = ["Noiva", "Festa", "Revenda", "Outro"];
+
+const paymentMethods = ["Pix", "Dinheiro", "Cartão de Crédito", "Cartão de Débito", "Transferência/Depósito", "Permuta"];
+
+// Dados fixos da empresa (editáveis aqui no código se precisar mudar)
+const COMPANY = {
+  name: "Mimos da Lídia",
+  tagline: "Artigos e Brindes Personalizados",
+  owner: "Lidia Araujo Rodrigues",
+  address: "Rua do Campo, 23 - Santana do Sobrado-BA",
+  phone: "(74) 98844-0460",
+  bank: "Itaú",
+  pixKey: "06124945517",
+  favorecido: "Lidia Araujo Rodrigues",
+};
+
 const c = {
   accent: "#e8a8c0",
   accentStrong: "#d4729a",
@@ -123,22 +152,27 @@ const c = {
 
 function App() {
   const [tab, setTab] = useState("dashboard");
-  const [data, setData] = useState({ transactions: [], products: [], budgets: [] });
+  const [data, setData] = useState({ transactions: [], products: [], budgets: [], clients: [], catalog: [] });
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState(null);
+  const [companyInfo, setCompanyInfo] = useState(COMPANY);
 
   useEffect(() => {
     (async () => {
       try {
-        const [txRes, prRes, buRes] = await Promise.all([
-          supabase.from("transactions").select("*").order("date", { ascending: false }),
+        const [txRes, prRes, buRes, clRes, catRes] = await Promise.all([
+          supabase.from("transactions").select("*").order("order_number", { ascending: false }),
           supabase.from("products").select("*").order("id", { ascending: false }),
           supabase.from("budgets").select("*").order("date", { ascending: false }),
+          supabase.from("clients").select("*").order("name", { ascending: true }),
+          supabase.from("catalog").select("*").order("name", { ascending: true }),
         ]);
         setData({
           transactions: txRes.data || [],
           products: prRes.data || [],
           budgets: buRes.data || [],
+          clients: clRes.data || [],
+          catalog: catRes.data || [],
         });
       } catch (e) {
         console.error("Erro ao carregar dados:", e);
@@ -152,10 +186,39 @@ function App() {
     setTimeout(() => setToast(null), 2800);
   }
 
+  function nextOrderNumber() {
+    const max = data.transactions.reduce((m, t) => Math.max(m, t.order_number || 0), 0);
+    return max + 1;
+  }
+
+  // ─── CLIENTES: criação automática a partir do nome digitado em Lançamento ───
+  async function ensureClient(name) {
+    if (!name || !name.trim()) return null;
+    const trimmed = name.trim();
+    const existing = data.clients.find(cl => cl.name.toLowerCase() === trimmed.toLowerCase());
+    if (existing) return existing;
+    const { data: inserted, error } = await supabase.from("clients").insert([{ name: trimmed, contact: "", tier: null, segment: null }]).select();
+    if (error) { console.error(error); return null; }
+    setData(d => ({ ...d, clients: [...d.clients, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)) }));
+    return inserted[0];
+  }
+
   async function addTransaction(form) {
-    const row = { type: form.type, description: form.description, amount: parseFloat(form.amount), category: form.category, date: form.date };
+    await ensureClient(form.client);
+    const row = {
+      type: form.type,
+      description: form.description,
+      amount: parseFloat(form.amount),
+      category: form.category,
+      date: form.date,
+      order_number: nextOrderNumber(),
+      client: form.client || null,
+      payment_method: form.payment_method || null,
+      observation: form.observation || null,
+      delivery_date: form.delivery_date || null,
+    };
     const { data: inserted, error } = await supabase.from("transactions").insert([row]).select();
-    if (error) { showToast("Erro ao salvar lançamento", "error"); return false; }
+    if (error) { showToast("Erro ao salvar lançamento", "error"); console.error(error); return false; }
     setData(d => ({ ...d, transactions: [inserted[0], ...d.transactions] }));
     showToast("Lançamento adicionado!");
     return true;
@@ -206,6 +269,58 @@ function App() {
     showToast("Removido.");
   }
 
+  // ─── CLIENTES (CRUD completo) ───
+  async function addClient(form) {
+    const row = { name: form.name, contact: form.contact || "", tier: form.tier || null, segment: form.segment || null };
+    const { data: inserted, error } = await supabase.from("clients").insert([row]).select();
+    if (error) { showToast("Erro ao salvar cliente", "error"); return false; }
+    setData(d => ({ ...d, clients: [...d.clients, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)) }));
+    showToast("Cliente adicionado!");
+    return true;
+  }
+
+  async function updateClient(id, form) {
+    const row = { name: form.name, contact: form.contact || "", tier: form.tier || null, segment: form.segment || null };
+    const { error } = await supabase.from("clients").update(row).eq("id", id);
+    if (error) { showToast("Erro ao atualizar cliente", "error"); return false; }
+    setData(d => ({ ...d, clients: d.clients.map(cl => cl.id === id ? { ...cl, ...row } : cl).sort((a, b) => a.name.localeCompare(b.name)) }));
+    showToast("Cliente atualizado!");
+    return true;
+  }
+
+  async function removeClient(id) {
+    const { error } = await supabase.from("clients").delete().eq("id", id);
+    if (error) { showToast("Erro ao remover", "error"); return; }
+    setData(d => ({ ...d, clients: d.clients.filter(cl => cl.id !== id) }));
+    showToast("Removido.");
+  }
+
+  // ─── CATÁLOGO DE PRODUTOS (CRUD simples) ───
+  async function addCatalogItem(form) {
+    const row = { name: form.name, category: form.category };
+    const { data: inserted, error } = await supabase.from("catalog").insert([row]).select();
+    if (error) { showToast("Erro ao salvar produto", "error"); return false; }
+    setData(d => ({ ...d, catalog: [...d.catalog, inserted[0]].sort((a, b) => a.name.localeCompare(b.name)) }));
+    showToast("Produto cadastrado!");
+    return true;
+  }
+
+  async function updateCatalogItem(id, form) {
+    const row = { name: form.name, category: form.category };
+    const { error } = await supabase.from("catalog").update(row).eq("id", id);
+    if (error) { showToast("Erro ao atualizar", "error"); return false; }
+    setData(d => ({ ...d, catalog: d.catalog.map(it => it.id === id ? { ...it, ...row } : it).sort((a, b) => a.name.localeCompare(b.name)) }));
+    showToast("Produto atualizado!");
+    return true;
+  }
+
+  async function removeCatalogItem(id) {
+    const { error } = await supabase.from("catalog").delete().eq("id", id);
+    if (error) { showToast("Erro ao remover", "error"); return; }
+    setData(d => ({ ...d, catalog: d.catalog.filter(it => it.id !== id) }));
+    showToast("Removido.");
+  }
+
   if (!loaded) return (
     <div style={S.loading}>
       <div style={S.spinner} />
@@ -218,8 +333,8 @@ function App() {
       <header style={S.header}>
         <div style={S.headerInner}>
           <div>
-            <div style={S.logo}>Financeiro</div>
-            <div style={S.logoSub}>Loja de Personalizados</div>
+            <div className="logo-title" style={S.logo}>Financeiro</div>
+            <div className="logo-sub" style={S.logoSub}>Loja de Personalizados</div>
           </div>
         </div>
         <nav style={S.nav}>
@@ -227,10 +342,12 @@ function App() {
             { id: "dashboard", label: "Resumo" },
             { id: "transactions", label: "Lançamentos" },
             { id: "products", label: "Produtos" },
+            { id: "catalog", label: "Catálogo" },
             { id: "budgets", label: "Orçamentos" },
+            { id: "clients", label: "Clientes" },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ ...S.navBtn, ...(tab === t.id ? S.navBtnActive : {}) }}>
+              className={"nav-btn-block" + (tab === t.id ? " nav-active" : "")} style={{ ...S.navBtn, ...(tab === t.id ? S.navBtnActive : {}) }}>
               {t.label}
             </button>
           ))}
@@ -239,9 +356,11 @@ function App() {
 
       <main style={S.main}>
         {tab === "dashboard" && <Dashboard data={data} />}
-        {tab === "transactions" && <Transactions data={data} addTransaction={addTransaction} removeTransaction={removeTransaction} showToast={showToast} />}
+        {tab === "transactions" && <Transactions data={data} addTransaction={addTransaction} removeTransaction={removeTransaction} showToast={showToast} companyInfo={companyInfo} setCompanyInfo={setCompanyInfo} />}
         {tab === "products" && <Products data={data} addProduct={addProduct} removeProduct={removeProduct} showToast={showToast} />}
+        {tab === "catalog" && <Catalog data={data} addCatalogItem={addCatalogItem} updateCatalogItem={updateCatalogItem} removeCatalogItem={removeCatalogItem} showToast={showToast} />}
         {tab === "budgets" && <Budgets data={data} addBudget={addBudget} updateBudgetStatus={updateBudgetStatus} removeBudget={removeBudget} showToast={showToast} />}
+        {tab === "clients" && <Clients data={data} addClient={addClient} updateClient={updateClient} removeClient={removeClient} showToast={showToast} />}
       </main>
 
       {toast && (
@@ -258,6 +377,7 @@ function Dashboard({ data }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
+  const [showExport, setShowExport] = useState(false);
 
   function prevMonth() {
     if (month === 0) { setMonth(11); setYear(y => y - 1); }
@@ -288,19 +408,23 @@ function Dashboard({ data }) {
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <button onClick={prevMonth} style={S.monthBtn}>‹</button>
-        <h2 style={{ ...S.sectionTitle, marginBottom: 0, flex: 1, textAlign: "center", fontSize: 17 }}>
+        <h2 className="section-title" style={{ ...S.sectionTitle, marginBottom: 0, flex: 1, textAlign: "center", fontSize: 17 }}>
           {monthLabel}
         </h2>
         <button onClick={nextMonth} style={{ ...S.monthBtn, opacity: isCurrentMonth ? 0.3 : 1 }} disabled={isCurrentMonth}>›</button>
       </div>
 
-      <div style={S.kpiGrid}>
+      <div className="grid-kpi" style={S.kpiGrid}>
         <KPI label="Entradas" value={totalIn} color={c.green} icon="↑" />
         <KPI label="Saídas" value={totalOut} color={c.red} icon="↓" />
         <KPI label="Lucro" value={profit} color={c.accentStrong} icon="◈" />
       </div>
 
-      <div style={S.twoCol}>
+      <button style={{ ...S.btnPrimary, marginBottom: 20 }} onClick={() => setShowExport(true)}>
+        Exportar Lançamentos (PDF)
+      </button>
+
+      <div className="grid-2col" style={S.twoCol}>
         <div style={S.card}>
           <div style={S.cardTitle}>Mais Vendidos (este mês)</div>
           {topCats.length === 0 ? (
@@ -332,6 +456,8 @@ function Dashboard({ data }) {
           ))}
         </div>
       </div>
+
+      {showExport && <ExportModal transactions={data.transactions} onClose={() => setShowExport(false)} />}
     </div>
   );
 }
@@ -340,35 +466,190 @@ function KPI({ label, value, color, icon }) {
   return (
     <div style={S.kpiCard}>
       <div style={{ ...S.kpiIcon, color }}>{icon}</div>
-      <div style={{ ...S.kpiValue, color }}>{fmt(value)}</div>
-      <div style={S.kpiLabel}>{label}</div>
+      <div className="kpi-value" style={{ ...S.kpiValue, color }}>{fmt(value)}</div>
+      <div className="kpi-label" style={S.kpiLabel}>{label}</div>
+    </div>
+  );
+}
+
+// ─── MODAL DE EXPORTAÇÃO POR PERÍODO ──────────────────────────────────────────
+function ExportModal({ transactions, onClose }) {
+  const [start, setStart] = useState(today());
+  const [end, setEnd] = useState(today());
+  const [filterType, setFilterType] = useState("todos");
+
+  function generate() {
+    const filtered = transactions.filter(t => {
+      if (!t.date) return false;
+      if (t.date < start || t.date > end) return false;
+      if (filterType !== "todos" && t.type !== filterType) return false;
+      return true;
+    }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (filtered.length === 0) {
+      alert("Nenhum lançamento encontrado nesse período.");
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pink = [212, 114, 154];
+    const dark = [40, 30, 36];
+    const gray = [120, 120, 128];
+    const pageW = doc.internal.pageSize.getWidth();
+    let y = 50;
+
+    doc.setFillColor(...pink);
+    doc.rect(0, 0, pageW, 8, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...dark);
+    doc.text(COMPANY.name, 40, y);
+    y += 18;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...gray);
+    doc.text(COMPANY.tagline, 40, y);
+    y += 30;
+
+    doc.setDrawColor(...pink);
+    doc.setLineWidth(1.2);
+    doc.line(40, y, pageW - 40, y);
+    y += 26;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(...dark);
+    doc.text("Extrato de Lançamentos", 40, y);
+    y += 18;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...gray);
+    const tipoLabel = filterType === "todos" ? "Entradas e Saídas" : filterType === "entrada" ? "Entradas" : "Saídas";
+    doc.text(`Período: ${fmtDate(start)} a ${fmtDate(end)}  ·  ${tipoLabel}`, 40, y);
+    y += 26;
+
+    // Cabeçalho da tabela
+    doc.setFillColor(248, 230, 238);
+    doc.rect(40, y, pageW - 80, 22, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...dark);
+    doc.text("Data", 46, y + 15);
+    doc.text("Descrição", 110, y + 15);
+    doc.text("Categoria", 300, y + 15);
+    doc.text("Tipo", 410, y + 15);
+    doc.text("Valor", pageW - 50, y + 15, { align: "right" });
+    y += 22;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    let totalIn = 0, totalOut = 0;
+
+    filtered.forEach((t, i) => {
+      if (y > 760) { doc.addPage(); y = 50; }
+      if (i % 2 === 0) {
+        doc.setFillColor(252, 244, 248);
+        doc.rect(40, y, pageW - 80, 20, "F");
+      }
+      doc.setTextColor(...dark);
+      doc.text(fmtDate(t.date), 46, y + 14);
+      doc.text(truncate(t.description || "", 38), 110, y + 14);
+      doc.text(truncate(t.category || "", 20), 300, y + 14);
+      doc.setTextColor(...(t.type === "entrada" ? [52, 199, 89] : [255, 69, 58]));
+      doc.text(t.type === "entrada" ? "Entrada" : "Saída", 410, y + 14);
+      doc.text((t.type === "entrada" ? "+" : "-") + fmt(t.amount), pageW - 50, y + 14, { align: "right" });
+      if (t.type === "entrada") totalIn += Number(t.amount); else totalOut += Number(t.amount);
+      y += 20;
+    });
+
+    y += 14;
+    doc.setDrawColor(...pink);
+    doc.line(40, y, pageW - 40, y);
+    y += 20;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.text(`Total de Entradas: ${fmt(totalIn)}`, 40, y);
+    y += 16;
+    doc.text(`Total de Saídas: ${fmt(totalOut)}`, 40, y);
+    y += 16;
+    doc.setTextColor(...pink);
+    doc.text(`Saldo do Período: ${fmt(totalIn - totalOut)}`, 40, y);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...gray);
+    doc.text(`${COMPANY.address}  ·  ${COMPANY.phone}`, 40, 800);
+
+    doc.save(`extrato_${start}_a_${end}.pdf`);
+    onClose();
+  }
+
+  return (
+    <div style={S.modalOverlay} onClick={onClose}>
+      <div className="modal-card" style={S.modalCard} onClick={e => e.stopPropagation()}>
+        <div style={S.cardTitle}>Exportar Lançamentos</div>
+        <div className="grid-form" style={S.formGrid}>
+          <div>
+            <label style={S.label}>De</label>
+            <input className="app-input" style={S.input} type="date" value={start} onChange={e => setStart(e.target.value)} />
+          </div>
+          <div>
+            <label style={S.label}>Até</label>
+            <input className="app-input" style={S.input} type="date" value={end} onChange={e => setEnd(e.target.value)} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={S.label}>Tipo</label>
+            <select className="app-input" style={S.input} value={filterType} onChange={e => setFilterType(e.target.value)}>
+              <option value="todos">Entradas e Saídas</option>
+              <option value="entrada">Apenas Entradas</option>
+              <option value="saida">Apenas Saídas</option>
+            </select>
+          </div>
+          <button className="btn-primary" style={S.btnPrimary} onClick={generate}>Gerar PDF</button>
+          <button style={S.btnSecondary} onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
     </div>
   );
 }
 
 // ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
-function Transactions({ data, addTransaction, removeTransaction, showToast }) {
-  const [form, setForm] = useState({ type: "entrada", description: "", amount: "", category: categories[0], date: today() });
+function Transactions({ data, addTransaction, removeTransaction, showToast, companyInfo, setCompanyInfo }) {
+  const [form, setForm] = useState({
+    type: "entrada", description: "", amount: "", category: categories[0], date: today(),
+    client: "", payment_method: paymentMethods[0], observation: "", delivery_date: "",
+  });
   const [filter, setFilter] = useState("todos");
   const [saving, setSaving] = useState(false);
+  const [showBankEdit, setShowBankEdit] = useState(false);
+  const [pdfTarget, setPdfTarget] = useState(null);
 
   async function add() {
     if (!form.description || !form.amount) return showToast("Preencha descrição e valor", "error");
     setSaving(true);
     await addTransaction(form);
-    setForm(f => ({ ...f, description: "", amount: "" }));
+    setForm(f => ({ ...f, description: "", amount: "", client: "", observation: "", delivery_date: "" }));
     setSaving(false);
   }
 
   const filtered = filter === "todos" ? data.transactions : data.transactions.filter(t => t.type === filter);
-  const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const sorted = [...filtered].sort((a, b) => (b.order_number || 0) - (a.order_number || 0));
+  const clientNames = data.clients.map(cl => cl.name);
 
   return (
     <div>
-      <h2 style={S.sectionTitle}>Lançamentos</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <h2 className="section-title" style={{ ...S.sectionTitle, marginBottom: 0 }}>Lançamentos</h2>
+        <button style={S.linkBtn} onClick={() => setShowBankEdit(true)}>Dados bancários</button>
+      </div>
+
       <div style={S.card}>
         <div style={S.cardTitle}>Novo Lançamento</div>
-        <div style={S.formGrid}>
+        <div className="grid-form" style={S.formGrid}>
           <div style={S.typeToggle}>
             {["entrada", "saida"].map(t => (
               <button key={t} onClick={() => setForm(f => ({ ...f, type: t }))}
@@ -377,17 +658,35 @@ function Transactions({ data, addTransaction, removeTransaction, showToast }) {
               </button>
             ))}
           </div>
-          <input style={S.input} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-          <input style={S.input} placeholder="Valor (R$)" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
-          <select style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+
+          <input className="app-input" style={S.input} placeholder="Descrição" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Valor (R$)" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+
+          <select className="app-input" style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
             {categories.map(cat => <option key={cat}>{cat}</option>)}
           </select>
-          <input style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+          <input className="app-input" style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+
+          <input className="app-input" style={S.input} list="client-list" placeholder="Cliente" value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))} />
+          <datalist id="client-list">
+            {clientNames.map(n => <option key={n} value={n} />)}
+          </datalist>
+
+          <select className="app-input" style={S.input} value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}>
+            {paymentMethods.map(p => <option key={p}>{p}</option>)}
+          </select>
+
+          <input className="app-input" style={S.input} type="date" placeholder="Prazo de entrega" value={form.delivery_date} onChange={e => setForm(f => ({ ...f, delivery_date: e.target.value }))} />
+          <div />
+
+          <textarea style={{ ...S.input, gridColumn: "1 / -1", minHeight: 60, resize: "vertical" }} placeholder="Observação (opcional)" value={form.observation} onChange={e => setForm(f => ({ ...f, observation: e.target.value }))} />
+
+          <button className="btn-primary" style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Adicionar"}
           </button>
         </div>
       </div>
+
       <div style={{ display: "flex", gap: 8, margin: "20px 0 12px" }}>
         {["todos", "entrada", "saida"].map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -396,23 +695,223 @@ function Transactions({ data, addTransaction, removeTransaction, showToast }) {
           </button>
         ))}
       </div>
+
       {sorted.length === 0 ? <p style={S.empty}>Nenhum lançamento ainda.</p> : sorted.map(t => (
-        <div key={t.id} style={{ ...S.txCard, borderLeft: `3px solid ${t.type === "entrada" ? c.green : c.red}` }}>
-          <div style={{ flex: 1 }}>
+        <div key={t.id} className="tx-card-inner" style={{ ...S.txCard, borderLeft: `3px solid ${t.type === "entrada" ? c.green : c.red}`, flexWrap: "wrap" }}>
+          <div className="order-badge" style={S.orderBadge}># {String(t.order_number || 0).padStart(4, "0")}</div>
+          <div style={{ flex: 1, minWidth: 140 }}>
             <div style={S.txDesc}>{t.description}</div>
-            <div style={S.txMeta}>{t.category} · {t.date}</div>
+            <div style={S.txMeta}>{t.category} · {t.date}{t.client ? ` · ${t.client}` : ""}</div>
           </div>
           <div style={{ ...S.txAmount, color: t.type === "entrada" ? c.green : c.red }}>
             {t.type === "entrada" ? "+" : "-"}{fmt(t.amount)}
           </div>
+          <button onClick={() => setPdfTarget(t)} style={S.btnPdf}>Gerar PDF</button>
           <button onClick={() => removeTransaction(t.id)} style={S.btnRemove}>✕</button>
         </div>
       ))}
+
+      {showBankEdit && <BankInfoModal companyInfo={companyInfo} setCompanyInfo={setCompanyInfo} onClose={() => setShowBankEdit(false)} />}
+      {pdfTarget && <OrderPdfModal transaction={pdfTarget} clients={data.clients} companyInfo={companyInfo} onClose={() => setPdfTarget(null)} />}
     </div>
   );
 }
 
-// ─── PRODUCTS ─────────────────────────────────────────────────────────────────
+function BankInfoModal({ companyInfo, setCompanyInfo, onClose }) {
+  const [form, setForm] = useState(companyInfo);
+  return (
+    <div style={S.modalOverlay} onClick={onClose}>
+      <div className="modal-card" style={S.modalCard} onClick={e => e.stopPropagation()}>
+        <div style={S.cardTitle}>Dados Bancários e da Empresa</div>
+        <div className="grid-form" style={S.formGrid}>
+          <input className="app-input" style={S.input} placeholder="Nome da loja" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Slogan" value={form.tagline} onChange={e => setForm(f => ({ ...f, tagline: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Banco" value={form.bank} onChange={e => setForm(f => ({ ...f, bank: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Chave PIX" value={form.pixKey} onChange={e => setForm(f => ({ ...f, pixKey: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Favorecido" value={form.favorecido} onChange={e => setForm(f => ({ ...f, favorecido: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Endereço" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Telefone/WhatsApp" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          <div />
+          <button className="btn-primary" style={S.btnPrimary} onClick={() => { setCompanyInfo(form); onClose(); }}>Salvar</button>
+          <button style={S.btnSecondary} onClick={onClose}>Cancelar</button>
+        </div>
+        <p style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 10 }}>
+          Essas informações ficam salvas apenas neste navegador, neste dispositivo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL DE GERAÇÃO DE PDF DO PEDIDO ────────────────────────────────────────
+function OrderPdfModal({ transaction, clients, companyInfo, onClose }) {
+  const t = transaction;
+  const client = clients.find(cl => cl.name === t.client);
+
+  function generate() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    const pink = [212, 114, 154];
+    const pinkLight = [248, 230, 238];
+    const dark = [40, 30, 36];
+    const gray = [120, 120, 128];
+    const pageW = doc.internal.pageSize.getWidth();
+    let y = 0;
+
+    // Faixa superior
+    doc.setFillColor(...pink);
+    doc.rect(0, 0, pageW, 10, "F");
+    y = 46;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(...dark);
+    doc.text(companyInfo.name, 40, y);
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...gray);
+    doc.text(companyInfo.tagline, 40, y);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(...pink);
+    doc.text(`Pedido Nº ${String(t.order_number || 0).padStart(4, "0")}`, pageW - 40, 46, { align: "right" });
+
+    y += 24;
+    doc.setDrawColor(...pink);
+    doc.setLineWidth(1.2);
+    doc.line(40, y, pageW - 40, y);
+    y += 28;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...dark);
+    doc.text("ORDEM DE PEDIDO", 40, y);
+    y += 26;
+
+    // Dados do cliente
+    doc.setFillColor(...pinkLight);
+    doc.roundedRect(40, y, pageW - 80, 56, 8, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.text("Cliente:", 52, y + 20);
+    doc.setFont("helvetica", "normal");
+    doc.text(t.client || "-", 110, y + 20);
+    doc.setFont("helvetica", "bold");
+    doc.text("Contato:", 52, y + 40);
+    doc.setFont("helvetica", "normal");
+    doc.text((client && client.contact) || "-", 110, y + 40);
+    y += 76;
+
+    // Tabela de descrição do pedido
+    doc.setFillColor(...pinkLight);
+    doc.rect(40, y, pageW - 80, 22, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("Descrição do Pedido", 50, y + 15);
+    doc.text("Valor", pageW - 50, y + 15, { align: "right" });
+    y += 22;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const descLines = doc.splitTextToSize(t.description || "-", pageW - 180);
+    doc.text(descLines, 50, y + 16);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...pink);
+    doc.text(fmt(t.amount), pageW - 50, y + 16, { align: "right" });
+    y += Math.max(24, descLines.length * 13 + 10);
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(40, y, pageW - 40, y);
+    y += 20;
+
+    // Categoria / Prazo / Pagamento
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...gray);
+    doc.text("Categoria", 40, y);
+    doc.text("Prazo de Entrega", 220, y);
+    doc.text("Forma de Pagamento", 400, y);
+    y += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.text(t.category || "-", 40, y);
+    doc.text(t.delivery_date ? fmtDate(t.delivery_date) : "-", 220, y);
+    doc.text(t.payment_method || "-", 400, y);
+    y += 26;
+
+    if (t.observation) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...gray);
+      doc.text("Observação", 40, y);
+      y += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(...dark);
+      const obsLines = doc.splitTextToSize(t.observation, pageW - 80);
+      doc.text(obsLines, 40, y);
+      y += obsLines.length * 13 + 14;
+    }
+
+    y += 10;
+    doc.setDrawColor(...pink);
+    doc.line(40, y, pageW - 40, y);
+    y += 24;
+
+    // Dados bancários
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.text("Forma de Pagamento / Dados Bancários", 40, y);
+    y += 16;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(`Chave PIX: ${companyInfo.pixKey}`, 40, y); y += 14;
+    doc.text(`Banco: ${companyInfo.bank}`, 40, y); y += 14;
+    doc.text(`Favorecido: ${companyInfo.favorecido}`, 40, y); y += 26;
+
+    // Assinatura / data
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const todayLabel = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+    doc.text(todayLabel, pageW / 2, y, { align: "center" });
+    y += 16;
+    doc.setFont("helvetica", "italic");
+    doc.text(companyInfo.favorecido, pageW / 2, y, { align: "center" });
+
+    // Rodapé
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...gray);
+    doc.text(`${companyInfo.address}`, pageW / 2, 780, { align: "center" });
+    doc.text(`Telefone/WhatsApp: ${companyInfo.phone}`, pageW / 2, 793, { align: "center" });
+
+    doc.save(`pedido_${String(t.order_number || 0).padStart(4, "0")}.pdf`);
+    onClose();
+  }
+
+  return (
+    <div style={S.modalOverlay} onClick={onClose}>
+      <div className="modal-card" style={S.modalCard} onClick={e => e.stopPropagation()}>
+        <div style={S.cardTitle}>Gerar Ordem de Pedido</div>
+        <p style={{ fontSize: 14, color: "var(--text-secondary)", marginBottom: 16 }}>
+          Pedido Nº {String(t.order_number || 0).padStart(4, "0")} — {t.client || "Sem cliente"}
+        </p>
+        <div className="grid-form" style={S.formGrid}>
+          <button className="btn-primary" style={S.btnPrimary} onClick={generate}>Gerar e Baixar PDF</button>
+          <button style={S.btnSecondary} onClick={onClose}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PRODUCTS (lucro) ─────────────────────────────────────────────────────────
 function Products({ data, addProduct, removeProduct, showToast }) {
   const [form, setForm] = useState({ name: "", category: categories[0], cost: "", price: "" });
   const [saving, setSaving] = useState(false);
@@ -427,23 +926,23 @@ function Products({ data, addProduct, removeProduct, showToast }) {
 
   return (
     <div>
-      <h2 style={S.sectionTitle}>Lucro por Produto</h2>
+      <h2 className="section-title" style={S.sectionTitle}>Lucro por Produto</h2>
       <div style={S.card}>
         <div style={S.cardTitle}>Novo Produto</div>
-        <div style={S.formGrid}>
-          <input style={S.input} placeholder="Nome do produto" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          <select style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+        <div className="grid-form" style={S.formGrid}>
+          <input className="app-input" style={S.input} placeholder="Nome do produto" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <select className="app-input" style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
             {categories.map(cat => <option key={cat}>{cat}</option>)}
           </select>
-          <input style={S.input} placeholder="Custo (R$)" type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} />
-          <input style={S.input} placeholder="Preço de venda (R$)" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+          <input className="app-input" style={S.input} placeholder="Custo (R$)" type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Preço de venda (R$)" type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+          <button className="btn-primary" style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Calcular e Salvar"}
           </button>
         </div>
       </div>
       {data.products.length === 0 ? <p style={S.empty}>Nenhum produto cadastrado ainda.</p> : (
-        <div style={S.productGrid}>
+        <div className="grid-product" style={S.productGrid}>
           {data.products.map(p => {
             const lucro = Number(p.price) - Number(p.cost);
             const margem = ((lucro / Number(p.price)) * 100).toFixed(1);
@@ -471,6 +970,84 @@ function Products({ data, addProduct, removeProduct, showToast }) {
   );
 }
 
+// ─── CATÁLOGO DE PRODUTOS (cadastro simples) ──────────────────────────────────
+function Catalog({ data, addCatalogItem, updateCatalogItem, removeCatalogItem, showToast }) {
+  const [form, setForm] = useState({ name: "", category: categories[0] });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", category: categories[0] });
+  const [filterCat, setFilterCat] = useState("todas");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!form.name) return showToast("Preencha o nome do produto", "error");
+    setSaving(true);
+    await addCatalogItem(form);
+    setForm(f => ({ ...f, name: "" }));
+    setSaving(false);
+  }
+
+  function startEdit(item) {
+    setEditingId(item.id);
+    setEditForm({ name: item.name, category: item.category });
+  }
+
+  async function saveEdit() {
+    await updateCatalogItem(editingId, editForm);
+    setEditingId(null);
+  }
+
+  const filtered = filterCat === "todas" ? data.catalog : data.catalog.filter(it => it.category === filterCat);
+
+  return (
+    <div>
+      <h2 className="section-title" style={S.sectionTitle}>Catálogo de Produtos</h2>
+      <div style={S.card}>
+        <div style={S.cardTitle}>Novo Produto no Catálogo</div>
+        <div className="grid-form" style={S.formGrid}>
+          <input className="app-input" style={S.input} placeholder="Nome do produto" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <select className="app-input" style={S.input} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            {categories.map(cat => <option key={cat}>{cat}</option>)}
+          </select>
+          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, gridColumn: "1 / -1" }} onClick={add} disabled={saving}>
+            {saving ? "Salvando..." : "Adicionar ao Catálogo"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, margin: "20px 0 12px", flexWrap: "wrap" }}>
+        <button onClick={() => setFilterCat("todas")} style={{ ...S.filterBtn, ...(filterCat === "todas" ? S.filterBtnActive : {}) }}>Todas</button>
+        {categories.map(cat => (
+          <button key={cat} onClick={() => setFilterCat(cat)} style={{ ...S.filterBtn, ...(filterCat === cat ? S.filterBtnActive : {}) }}>{cat}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? <p style={S.empty}>Nenhum produto no catálogo ainda.</p> : filtered.map(item => (
+        <div key={item.id} style={S.txCard}>
+          {editingId === item.id ? (
+            <div style={{ display: "flex", gap: 10, flex: 1, flexWrap: "wrap" }}>
+              <input style={{ ...S.input, flex: 1, minWidth: 140 }} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              <select style={{ ...S.input, flex: 1, minWidth: 140 }} value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
+                {categories.map(cat => <option key={cat}>{cat}</option>)}
+              </select>
+              <button className="btn-primary" style={S.btnPrimary} onClick={saveEdit}>Salvar</button>
+              <button style={S.btnSecondary} onClick={() => setEditingId(null)}>Cancelar</button>
+            </div>
+          ) : (
+            <React.Fragment>
+              <div style={{ flex: 1 }}>
+                <div style={S.txDesc}>{item.name}</div>
+                <div style={S.txMeta}>{item.category}</div>
+              </div>
+              <button style={S.btnSecondary} onClick={() => startEdit(item)}>Editar</button>
+              <button onClick={() => removeCatalogItem(item.id)} style={S.btnRemove}>✕</button>
+            </React.Fragment>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── BUDGETS ──────────────────────────────────────────────────────────────────
 function Budgets({ data, addBudget, updateBudgetStatus, removeBudget, showToast }) {
   const [form, setForm] = useState({ client: "", event: "", items: "", total: "", date: today() });
@@ -488,16 +1065,16 @@ function Budgets({ data, addBudget, updateBudgetStatus, removeBudget, showToast 
 
   return (
     <div>
-      <h2 style={S.sectionTitle}>Orçamentos de Clientes</h2>
+      <h2 className="section-title" style={S.sectionTitle}>Orçamentos de Clientes</h2>
       <div style={S.card}>
         <div style={S.cardTitle}>Novo Orçamento</div>
-        <div style={S.formGrid}>
-          <input style={S.input} placeholder="Nome do cliente" value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))} />
-          <input style={S.input} placeholder="Evento (ex: Aniversário 30 anos)" value={form.event} onChange={e => setForm(f => ({ ...f, event: e.target.value }))} />
-          <input style={S.input} placeholder="Itens (ex: 50 convites, topo de bolo)" value={form.items} onChange={e => setForm(f => ({ ...f, items: e.target.value }))} />
-          <input style={S.input} placeholder="Valor total (R$)" type="number" value={form.total} onChange={e => setForm(f => ({ ...f, total: e.target.value }))} />
-          <input style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-          <button style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+        <div className="grid-form" style={S.formGrid}>
+          <input className="app-input" style={S.input} placeholder="Nome do cliente" value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Evento (ex: Aniversário 30 anos)" value={form.event} onChange={e => setForm(f => ({ ...f, event: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Itens (ex: 50 convites, topo de bolo)" value={form.items} onChange={e => setForm(f => ({ ...f, items: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Valor total (R$)" type="number" value={form.total} onChange={e => setForm(f => ({ ...f, total: e.target.value }))} />
+          <input className="app-input" style={S.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          <button className="btn-primary" style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
             {saving ? "Salvando..." : "Salvar Orçamento"}
           </button>
         </div>
@@ -526,30 +1103,153 @@ function Budgets({ data, addBudget, updateBudgetStatus, removeBudget, showToast 
   );
 }
 
+// ─── CLIENTES ─────────────────────────────────────────────────────────────────
+function Clients({ data, addClient, updateClient, removeClient, showToast }) {
+  const [form, setForm] = useState({ name: "", contact: "", tier: "", segment: "" });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", contact: "", tier: "", segment: "" });
+  const [filterTier, setFilterTier] = useState("todos");
+  const [filterSegment, setFilterSegment] = useState("todos");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    if (!form.name) return showToast("Preencha o nome do cliente", "error");
+    setSaving(true);
+    await addClient(form);
+    setForm({ name: "", contact: "", tier: "", segment: "" });
+    setSaving(false);
+  }
+
+  function startEdit(cl) {
+    setEditingId(cl.id);
+    setEditForm({ name: cl.name, contact: cl.contact || "", tier: cl.tier || "", segment: cl.segment || "" });
+  }
+
+  async function saveEdit() {
+    await updateClient(editingId, editForm);
+    setEditingId(null);
+  }
+
+  const filtered = data.clients.filter(cl => {
+    if (filterTier !== "todos" && cl.tier !== filterTier) return false;
+    if (filterSegment !== "todos" && cl.segment !== filterSegment) return false;
+    return true;
+  });
+
+  function tierInfo(tierId) {
+    return clientTiers.find(t => t.id === tierId);
+  }
+
+  return (
+    <div>
+      <h2 className="section-title" style={S.sectionTitle}>Clientes</h2>
+      <div style={S.card}>
+        <div style={S.cardTitle}>Novo Cliente</div>
+        <div className="grid-form" style={S.formGrid}>
+          <input className="app-input" style={S.input} placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input className="app-input" style={S.input} placeholder="Contato (telefone/Instagram)" value={form.contact} onChange={e => setForm(f => ({ ...f, contact: e.target.value }))} />
+          <select className="app-input" style={S.input} value={form.tier} onChange={e => setForm(f => ({ ...f, tier: e.target.value }))}>
+            <option value="">Categoria (opcional)</option>
+            {clientTiers.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+          <select className="app-input" style={S.input} value={form.segment} onChange={e => setForm(f => ({ ...f, segment: e.target.value }))}>
+            <option value="">Tipo de cliente (opcional)</option>
+            {clientSegments.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button className="btn-primary" style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }} onClick={add} disabled={saving}>
+            {saving ? "Salvando..." : "Adicionar Cliente"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, margin: "20px 0 12px", flexWrap: "wrap" }}>
+        <button onClick={() => setFilterTier("todos")} style={{ ...S.filterBtn, ...(filterTier === "todos" ? S.filterBtnActive : {}) }}>Todas categorias</button>
+        {clientTiers.map(t => (
+          <button key={t.id} onClick={() => setFilterTier(t.id)}
+            style={{ ...S.filterBtn, ...(filterTier === t.id ? { background: t.color + "26", color: t.color, fontWeight: 600 } : {}) }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, margin: "0 0 16px", flexWrap: "wrap" }}>
+        <button onClick={() => setFilterSegment("todos")} style={{ ...S.filterBtn, ...(filterSegment === "todos" ? S.filterBtnActive : {}) }}>Todos os tipos</button>
+        {clientSegments.map(s => (
+          <button key={s} onClick={() => setFilterSegment(s)} style={{ ...S.filterBtn, ...(filterSegment === s ? S.filterBtnActive : {}) }}>{s}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? <p style={S.empty}>Nenhum cliente encontrado.</p> : filtered.map(cl => {
+        const tier = tierInfo(cl.tier);
+        return (
+          <div key={cl.id} style={{ ...S.txCard, borderLeft: `3px solid ${tier ? tier.color : "var(--separator)"}`, flexWrap: "wrap" }}>
+            {editingId === cl.id ? (
+              <div style={{ display: "flex", gap: 10, flex: 1, flexWrap: "wrap" }}>
+                <input style={{ ...S.input, flex: 1, minWidth: 120 }} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                <input style={{ ...S.input, flex: 1, minWidth: 120 }} placeholder="Contato" value={editForm.contact} onChange={e => setEditForm(f => ({ ...f, contact: e.target.value }))} />
+                <select style={{ ...S.input, flex: 1, minWidth: 120 }} value={editForm.tier} onChange={e => setEditForm(f => ({ ...f, tier: e.target.value }))}>
+                  <option value="">Categoria</option>
+                  {clientTiers.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+                <select style={{ ...S.input, flex: 1, minWidth: 120 }} value={editForm.segment} onChange={e => setEditForm(f => ({ ...f, segment: e.target.value }))}>
+                  <option value="">Tipo</option>
+                  {clientSegments.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <button className="btn-primary" style={S.btnPrimary} onClick={saveEdit}>Salvar</button>
+                <button style={S.btnSecondary} onClick={() => setEditingId(null)}>Cancelar</button>
+              </div>
+            ) : (
+              <React.Fragment>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <div style={S.txDesc}>{cl.name}</div>
+                  <div style={S.txMeta}>
+                    {cl.contact || "Sem contato cadastrado"}
+                    {tier ? ` · ${tier.label}` : ""}
+                    {cl.segment ? ` · ${cl.segment}` : ""}
+                  </div>
+                </div>
+                <button style={S.btnSecondary} onClick={() => startEdit(cl)}>Editar</button>
+                <button onClick={() => removeClient(cl.id)} style={S.btnRemove}>✕</button>
+              </React.Fragment>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 function fmt(v) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
+}
+function fmtDate(iso) {
+  if (!iso) return "-";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+function truncate(str, n) {
+  return str.length > n ? str.slice(0, n - 1) + "…" : str;
 }
 function today() {
   return new Date().toISOString().split("T")[0];
 }
 
-// ─── STYLES (estilo Apple HIG: cantos arredondados, sombras suaves, espaçamento generoso) ────
+// ─── STYLES ───────────────────────────────────────────────────────────────────
 const S = {
   root: { minHeight: "100vh", color: "var(--text)" },
   loading: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh" },
   spinner: { width: 32, height: 32, border: "3px solid var(--fill)", borderTop: `3px solid ${c.accentStrong}`, borderRadius: "50%", animation: "spin 0.8s linear infinite" },
 
   header: { borderBottom: "1px solid var(--separator)", position: "sticky", top: 0, zIndex: 100, background: "var(--glass-bg-strong)", backdropFilter: "blur(28px) saturate(180%)", WebkitBackdropFilter: "blur(28px) saturate(180%)" },
-  headerInner: { maxWidth: 900, margin: "0 auto", padding: "16px 20px 8px" },
+  headerInner: { maxWidth: 960, margin: "0 auto", padding: "16px 16px 6px" },
   logo: { fontSize: 22, fontWeight: 700, letterSpacing: -0.4 },
   logoSub: { fontSize: 13, color: "var(--text-secondary)", marginTop: 2 },
 
-  nav: { maxWidth: 900, margin: "0 auto", padding: "4px 16px 12px", display: "flex", gap: 6, overflowX: "auto" },
-  navBtn: { background: "transparent", border: "none", color: "var(--text-secondary)", padding: "8px 14px", borderRadius: 980, cursor: "pointer", fontSize: 14, fontWeight: 500, whiteSpace: "nowrap", transition: "background 0.15s" },
-  navBtnActive: { background: c.accentSoft, color: c.accentStrong, fontWeight: 600 },
+  nav: { maxWidth: 960, margin: "0 auto", padding: "8px 16px 14px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
+  navBtn: { background: "var(--fill)", border: "none", color: "var(--text-secondary)", padding: "12px 6px", borderRadius: 14, cursor: "pointer", fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", textAlign: "center", transition: "background 0.15s" },
+  navBtnActive: { background: c.accentSoft, color: c.accentStrong, fontWeight: 700, boxShadow: "var(--shadow)" },
 
-  main: { maxWidth: 900, margin: "0 auto", padding: "24px 20px 60px" },
+  main: { maxWidth: 960, margin: "0 auto", padding: "20px 16px 60px" },
   sectionTitle: { fontSize: 22, fontWeight: 700, marginBottom: 20, letterSpacing: -0.3 },
 
   monthBtn: { background: "var(--glass-bg-strong)", backdropFilter: "blur(var(--blur))", WebkitBackdropFilter: "blur(var(--blur))", border: "1px solid var(--glass-border)", color: "var(--text)", borderRadius: "50%", width: 34, height: 34, fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "var(--shadow)" },
@@ -577,10 +1277,16 @@ const S = {
   txAmount: { fontWeight: 700, whiteSpace: "nowrap" },
   empty: { color: "var(--text-tertiary)", textAlign: "center", padding: "20px 0", fontSize: 14 },
 
+  orderBadge: { fontSize: 11, fontWeight: 700, color: c.accentStrong, background: c.accentSoft, borderRadius: 8, padding: "4px 8px", whiteSpace: "nowrap" },
+
   formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
+  label: { fontSize: 12, color: "var(--text-secondary)", marginBottom: 4, display: "block" },
   input: { background: "var(--fill)", border: "1px solid transparent", borderRadius: 12, padding: "11px 14px", color: "var(--text)", fontSize: 15, outline: "none", width: "100%" },
   btnPrimary: { gridColumn: "1 / -1", background: c.accentStrong, border: "none", color: "#fff", padding: "13px", borderRadius: 12, cursor: "pointer", fontWeight: 600, fontSize: 15, marginTop: 4 },
+  btnSecondary: { gridColumn: "1 / -1", background: "var(--fill)", border: "none", color: "var(--text)", padding: "13px", borderRadius: 12, cursor: "pointer", fontWeight: 600, fontSize: 15 },
   btnRemove: { background: "transparent", border: "1px solid var(--separator)", color: "var(--text-secondary)", borderRadius: 10, padding: "5px 12px", cursor: "pointer", fontSize: 13 },
+  btnPdf: { background: "transparent", border: `1px solid ${c.accentStrong}`, color: c.accentStrong, borderRadius: 10, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" },
+  linkBtn: { background: "transparent", border: "none", color: c.accentStrong, fontSize: 13, fontWeight: 600, cursor: "pointer", textDecoration: "underline" },
 
   typeToggle: { gridColumn: "1 / -1", display: "flex", gap: 8, background: "var(--fill)", borderRadius: 12, padding: 4 },
   typeBtn: { flex: 1, background: "transparent", border: "none", color: "var(--text-secondary)", borderRadius: 9, padding: "9px", cursor: "pointer", fontWeight: 600, fontSize: 14 },
@@ -600,13 +1306,63 @@ const S = {
 
   statusBtn: { fontSize: 11, fontWeight: 600, border: "1.5px solid", borderRadius: 980, padding: "4px 11px", cursor: "pointer" },
   toast: { position: "fixed", bottom: 24, right: 24, left: 24, maxWidth: 380, marginLeft: "auto", background: "var(--glass-bg-strong)", backdropFilter: "blur(28px) saturate(180%)", WebkitBackdropFilter: "blur(28px) saturate(180%)", border: "1px solid var(--glass-border)", padding: "13px 18px", borderRadius: 16, color: "var(--text)", fontWeight: 600, fontSize: 14, zIndex: 999, boxShadow: "var(--shadow-elevated)" },
+
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 },
+  modalCard: { background: "var(--glass-bg-strong)", backdropFilter: "blur(32px) saturate(180%)", WebkitBackdropFilter: "blur(32px) saturate(180%)", border: "1px solid var(--glass-border)", borderRadius: 22, padding: 24, maxWidth: 420, width: "100%", boxShadow: "var(--shadow-elevated)", maxHeight: "85vh", overflowY: "auto" },
 };
 
 const styleSheet = document.createElement("style");
 styleSheet.textContent = `
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (max-width: 640px) {
-    .grid-2 { grid-template-columns: 1fr !important; }
+
+  /* Telas pequenas (iPhone 13 ~390px, Android compactos) */
+  @media (max-width: 480px) {
+    .grid-2col { grid-template-columns: 1fr !important; }
+    .grid-form { grid-template-columns: 1fr !important; }
+    .grid-product { grid-template-columns: 1fr !important; }
+    .grid-kpi { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+  }
+
+  @media (max-width: 360px) {
+    .grid-kpi { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px !important; }
+  }
+
+  /* Ajustes gerais mobile */
+  @media (max-width: 520px) {
+    /* Header compacto */
+    .logo-title { font-size: 18px !important; }
+    .logo-sub { font-size: 11px !important; }
+
+    /* KPI cards menores */
+    .kpi-value { font-size: 15px !important; }
+    .kpi-label { font-size: 10px !important; }
+
+    /* Cards com menos padding */
+    .glass-card { padding: 14px !important; border-radius: 16px !important; }
+
+    /* Inputs mais compactos */
+    .app-input { padding: 10px 12px !important; font-size: 14px !important; }
+
+    /* Botão primário */
+    .btn-primary { font-size: 14px !important; padding: 11px !important; }
+
+    /* txCard em coluna quando tem muitos elementos */
+    .tx-card-inner { flex-wrap: wrap !important; gap: 8px !important; }
+
+    /* Nav blocks menores */
+    .nav-btn-block { font-size: 12px !important; padding: 10px 4px !important; border-radius: 12px !important; }
+
+    /* Seção title */
+    .section-title { font-size: 19px !important; }
+
+    /* Modal mais largo em tela pequena */
+    .modal-card { padding: 16px !important; border-radius: 18px !important; }
+
+    /* Badge pedido */
+    .order-badge { font-size: 10px !important; padding: 3px 6px !important; }
+
+    /* Botões de ação em lançamentos: empilha abaixo */
+    .tx-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   }
 `;
 document.head.appendChild(styleSheet);
